@@ -654,6 +654,7 @@ button:hover,
 </div>
 
 <!-- Main App -->
+<input type="file" id="imp-file" accept=".xlsx,.xls,.csv" style="display:none" onchange="impFile(event)">
 <div id="app" style="display:none">
   <div class="header">
     <div class="header-logo">
@@ -887,6 +888,7 @@ button:hover,
         </div>
         <div style="display:flex;gap:7px;align-items:center">
           <input type="text" id="history-search" placeholder="Search..." style="font-size:13px;padding:8px 12px;width:110px;border-radius:var(--radius-sm)" oninput="renderHistory()">
+          <button class="btn-ghost" onclick="impPick()" style="font-size:12px;padding:7px 12px">Import</button>
           <button class="btn-ghost" onclick="exportData()" style="font-size:12px;padding:7px 12px">Export</button>
         </div>
       </div>
@@ -2401,6 +2403,97 @@ function renderSms(){
     </div></details>`;
 }
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)smsSync(true);});
+
+// ── IMPORT FROM SPENDLY EXPORT (.xlsx / .csv) ───────────────────────────────
+let impPlan=null;
+function impDate(v){
+  if(v instanceof Date&&!isNaN(v))return {y:v.getFullYear(),m:v.getMonth(),d:v.getDate()};
+  if(typeof v==='number'&&v>20000&&v<80000){const t=new Date(Math.round((v-25569)*86400000));return {y:t.getUTCFullYear(),m:t.getUTCMonth(),d:t.getUTCDate()};}
+  const s=String(v==null?'':v).trim();let m=s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/);
+  if(m){let y=+m[3];if(y<100)y+=2000;if(+m[2]<1||+m[2]>12||+m[1]<1||+m[1]>31)return null;return {y,m:+m[2]-1,d:+m[1]};}
+  m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);if(m)return {y:+m[1],m:+m[2]-1,d:+m[3]};
+  return null;
+}
+function impTime(v){
+  if(typeof v==='number'&&v>=0&&v<1){const t=Math.round(v*1440);return {h:Math.floor(t/60)%24,n:t%60};}
+  const m=String(v==null?'':v).match(/(\d{1,2}):(\d{2})(?::\d{2})?\s*([ap])?m?/i);
+  if(!m)return {h:12,n:0};
+  let h=+m[1];const n=+m[2];const ap=(m[3]||'').toLowerCase();
+  if(ap==='p'&&h<12)h+=12;if(ap==='a'&&h===12)h=0;
+  return {h:h%24,n};
+}
+function impKey(y,mo,d,h,n,amt,note){return `${y}-${mo}-${d} ${h}:${n}|${Math.round(amt*100)}|${String(note||'').trim().toLowerCase()}`;}
+function impParse(wb){
+  let rows=null,hi=-1,cols={};
+  const names=[...wb.SheetNames].sort((a,b)=>(/transaction/i.test(b)?1:0)-(/transaction/i.test(a)?1:0));
+  for(const sn of names){
+    const r=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,raw:true,defval:''});
+    for(let i=0;i<Math.min(r.length,15);i++){
+      const h=r[i].map(x=>String(x).trim().toLowerCase());
+      if(h.includes('date')&&h.includes('amount')){rows=r;hi=i;h.forEach((x,j)=>{if(!(x in cols))cols[x]=j;});break;}
+    }
+    if(rows)break;
+  }
+  if(!rows)return null;
+  const byLabel={};CATS.forEach(c=>{byLabel[c.label.toLowerCase()]=c.id;byLabel[c.id]=c.id;});
+  const existing={};
+  data.entries.forEach(e=>{const t=new Date(e.timestamp);const k=impKey(t.getFullYear(),t.getMonth(),t.getDate(),t.getHours(),t.getMinutes(),e.amount,e.note);existing[k]=(existing[k]||0)+1;});
+  const plan={add:[],dup:0,bad:0,other:0,total:0,min:null,max:null};
+  for(let i=hi+1;i<rows.length;i++){
+    const r=rows[i];if(r.every(x=>x===''))continue;
+    plan.total++;
+    const dt=impDate(r[cols.date]);
+    let a=r[cols.amount];a=typeof a==='number'?a:parseFloat(String(a).replace(/[₹,\s]|rs\.?/gi,''));
+    if(!dt||!(a>0)){plan.bad++;continue;}
+    const tm=impTime(cols.time!=null?r[cols.time]:'');
+    const note=String(cols.note!=null?r[cols.note]:'').trim();
+    const k=impKey(dt.y,dt.m,dt.d,tm.h,tm.n,a,note);
+    if(existing[k]>0){existing[k]--;plan.dup++;continue;}
+    const cl=String(cols.category!=null?r[cols.category]:'').trim().toLowerCase();
+    let cat=byLabel[cl];if(!cat){cat='misc';plan.other++;}
+    const ts=new Date(dt.y,dt.m,dt.d,tm.h,tm.n);
+    plan.add.push({id:crypto.randomUUID(),amount:a,category:cat,timestamp:ts.toISOString(),note,src:'import'});
+    if(plan.min===null||ts<plan.min)plan.min=ts;if(plan.max===null||ts>plan.max)plan.max=ts;
+  }
+  return plan;
+}
+function impPick(){
+  if(typeof XLSX==='undefined'){showToast('Reload and try again','#fb923c');return;}
+  const f=document.getElementById('imp-file');f.value='';f.click();
+}
+async function impFile(ev){
+  const f=ev.target.files&&ev.target.files[0];if(!f)return;
+  try{
+    const wb=XLSX.read(await f.arrayBuffer(),{type:'array'});
+    const p=impParse(wb);
+    if(!p){showToast("Couldn't find Date and Amount columns",'#f87171');return;}
+    impPlan=p;impShow();
+  }catch(e){showToast('Could not read that file','#f87171');}
+}
+function impShow(){
+  const p=impPlan,fm=d=>d?d.toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'}):'';
+  let o=document.getElementById('imp-ov');if(o)o.remove();
+  o=document.createElement('div');o.id='imp-ov';
+  o.style.cssText='position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;padding:20px';
+  const tot=p.add.reduce((s,e)=>s+e.amount,0);
+  o.innerHTML=`<div style="background:#14141f;border:1px solid var(--border);border-radius:var(--radius-lg);padding:22px;max-width:360px;width:100%;color:var(--text)">
+   <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:700;margin-bottom:10px">Import preview</div>
+   <div style="font-size:14px;line-height:1.8">
+    <b>${p.add.length}</b> new entr${p.add.length===1?'y':'ies'} · ₹${Math.round(tot).toLocaleString('en-IN')}<br>
+    ${p.add.length?`<span style="color:var(--muted)">${fm(p.min)} to ${fm(p.max)}</span><br>`:''}
+    <span style="color:var(--muted)">${p.dup} already here, skipped${p.bad?` · ${p.bad} unreadable row${p.bad>1?'s':''}`:''}${p.other?` · ${p.other} filed under Misc`:''}</span>
+   </div>
+   <div style="display:flex;gap:10px;margin-top:18px"><button class="btn-ghost" style="flex:1" onclick="document.getElementById('imp-ov').remove()">Cancel</button>${p.add.length?`<button class="btn-primary" style="flex:1" onclick="impApply()">Import ${p.add.length}</button>`:''}</div></div>`;
+  document.body.appendChild(o);
+}
+function impApply(){
+  if(!impPlan)return;
+  data.entries.push(...impPlan.add);
+  save();render();if(typeof renderHistory==='function')renderHistory();
+  const n=impPlan.add.length;impPlan=null;
+  const o=document.getElementById('imp-ov');if(o)o.remove();
+  showToast(`Imported ${n} entries`,'#6ee7b7');
+}
 
 // ── SHARE CARD ────────────────────────────────────────────────────────────────
 function showShareCard(){
