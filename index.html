@@ -677,6 +677,7 @@ button:hover,
     <button class="nav-tab" onclick="showMonthlyReport()" id="tab-monthly">Monthly</button>
     <button class="nav-tab" onclick="showView('guide')" id="tab-guide">Guide</button>
     <button class="nav-tab" onclick="showView('recurring')" id="tab-recurring">Recurring <span id="recurring-badge" style="font-size:10px;opacity:.5"></span></button>
+    <button class="nav-tab" onclick="showView('sms')" id="tab-sms">Auto-log <span id="sms-badge" style="font-size:10px;opacity:.7"></span></button>
   </div>
 
   <!-- HOME VIEW -->
@@ -968,6 +969,12 @@ button:hover,
       No recurring entries yet.<br>Tap <strong>+ Log Spend</strong>, enter amount, then enable the <strong>Recurring toggle</strong> at the bottom of the form.
     </div>
   </div><!-- /view-recurring -->
+
+  <div id="view-sms" style="display:none;padding:0 16px">
+    <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:700;margin-bottom:4px;padding-top:4px">Auto-log from bank SMS</div>
+    <div style="font-size:13px;color:var(--muted);margin-bottom:16px">Debits from your bank SMS appear here on their own. No typing.</div>
+    <div id="sms-body"></div>
+  </div><!-- /view-sms -->
 
   <!-- FAB -->
   <div class="fab">
@@ -1343,6 +1350,7 @@ function initApp(){
   setTimeout(requestNotificationPermission, 3000);
   checkIOSInstall();
   checkRecurringEntries();
+  smsBadge();smsSync(true);
 }
 
 function buildCatChips(){
@@ -1877,13 +1885,13 @@ function renderHistory(){
 
 // ── VIEWS ─────────────────────────────────────────────────────────────────────
 function showView(v){
-  ['home','history','guide','recurring'].forEach(id=>{
+  ['home','history','guide','recurring','sms'].forEach(id=>{
     const el=document.getElementById(`view-${id}`);
     if(!el)return;
     if(id===v){el.classList.remove('view-hidden');el.style.display='block';}
     else{el.classList.add('view-hidden');el.style.display='none';}
   });
-  ['home','history','guide','recurring'].forEach(id=>{
+  ['home','history','guide','recurring','sms'].forEach(id=>{
     const tab=document.getElementById(`tab-${id}`);
     if(tab) tab.classList.toggle('active',id===v);
   });
@@ -1896,6 +1904,7 @@ function showView(v){
   document.getElementById('app').scrollTop=0;
   if(v==='history') renderHistory();
   if(v==='recurring') renderRecurring();
+  if(v==='sms'){renderSms();smsSync(true);}
 }
 
 // ── DAILY LIMIT EDIT ──────────────────────────────────────────────────────────
@@ -2268,6 +2277,130 @@ window.addEventListener('DOMContentLoaded',()=>{
   }
 });
 
+
+// ── BANK SMS AUTO-LOG ────────────────────────────────────────────────────────
+// An iPhone Shortcut posts each bank debit SMS to /api/sms. Spendly pulls them here, parses and logs them.
+const SMS_KEY='spendly_smskey';
+function smsKey(){try{return localStorage.getItem(SMS_KEY)||'';}catch{return '';}}
+function smsParse(raw){
+  const t=String(raw||'').replace(/\s+/g,' ').trim();
+  const am=t.match(/(?:Rs\.?|INR|₹)\s*([\d,]+(?:\.\d{1,2})?)/i);
+  if(!am)return null;
+  const amount=parseFloat(am[1].replace(/,/g,''));
+  if(!(amount>0))return null;
+  const debit=/\b(debited|spent|withdrawn|purchase)\b/i.test(t);
+  const credit=!debit&&/\bcredited\b/i.test(t);
+  if(!debit&&!credit)return null;
+  const dm=t.match(/\bon\s+(\d{1,2})[\/\-]([A-Za-z]{3}|\d{1,2})[\/\-](\d{2,4})/i);
+  let y=null,mo=null,d=null;
+  if(dm){d=+dm[1];const mm=dm[2];mo=/^\d+$/.test(mm)?+mm-1:['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'].indexOf(mm.toLowerCase());y=+dm[3];if(y<100)y+=2000;}
+  let merchant='';
+  const m1=t.match(/;\s*(.+?)\s+credited\b/i), m2=t.match(/\bat\s+(.+?)(?:\s+on\s|\s+Avl|\.|$)/i), m3=t.match(/\bto\s+(?:VPA\s+)?(.+?)(?:\s+on\s|\s+Ref|\s+UPI|\.|$)/i);
+  merchant=(m1&&m1[1])||(m2&&m2[1])||(m3&&m3[1])||'';
+  merchant=merchant.replace(/\s+/g,' ').trim();
+  const rr=t.match(/\bRRN\s*[:\-]?\s*(\d{6,})/i)||t.match(/\bRef(?:erence)?\s*(?:No\.?|#)?\s*[:\-]?\s*(\w{6,})/i);
+  return {amount,debit,y,mo,d,merchant,rrn:rr?rr[1]:''};
+}
+function smsTitle(s){return s.toLowerCase().replace(/\b[a-z]/g,c=>c.toUpperCase());}
+function smsMK(m){return String(m||'').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,12);}
+const SMS_RULES=[
+  ['fuel',/fill|petrol|diesel|\bhp\b|bharat ?pet|indian ?oil|iocl|bpcl|hpcl|shell|fuel|nayara/i],
+  ['subscriptions',/netflix|spotify|prime|hotstar|youtube|google ?(play|one)|apple|openai|chatgpt|anthropic|claude|jio ?cinema|zee5|sony ?liv|canva|notion/i],
+  ['utilities',/electric|bescom|tneb|tangedco|airtel|\bjio\b|vodafone|\bvi\b|recharge|broadband|fibernet|gas|water|bill ?desk|postpaid|dth|tatasky/i],
+  ['investments',/zerodha|groww|upstox|kuvera|indmoney|coin|mutual|\bsip\b|nps|smallcase|angel ?one|paytm ?money/i],
+  ['clothing',/myntra|zudio|trends|pantaloons|westside|ajio|h ?& ?m|max fashion|lifestyle|uniqlo|jockey|decathlon/i],
+  ['going_out',/\bbar\b|\bpub\b|brew|cinema|pvr|inox|bookmyshow|club|lounge|wine|beer|bistro/i],
+  ['debt',/\bemi\b|loan|credit ?card|cred\b|bajaj ?fin/i],
+  ['accommodation',/rent|landlord|nobroker|housing/i],
+  ['food',/hotel|restaurant|biryani|mess|cafe|swiggy|zomato|bakery|tiffin|dhaba|meals|kitchen|canteen|sweets|pizza|burger|dominos|kfc|mcdonald|subway|food|eats|bhavan|vilas/i],
+  ['snacks',/\btea\b|coffee|chai|juice|snack|ice ?cream|bunk|chaat|bakes|starbucks|chaayos/i],
+];
+function smsGuess(merchant){
+  const k=smsMK(merchant);
+  if(data.smsRules&&data.smsRules[k])return {cat:data.smsRules[k],sure:true};
+  for(const [c,rx] of SMS_RULES)if(rx.test(merchant))return {cat:c,sure:true};
+  return {cat:'misc',sure:false};
+}
+function smsPending(){return data&&data.entries?data.entries.filter(e=>e.review):[];}
+let smsBusy=false,smsLast=0,smsMsg='';
+async function smsSync(silent){
+  const key=smsKey();
+  if(!key||!data||isDemoMode||smsBusy)return;
+  if(silent&&Date.now()-smsLast<60000)return;
+  smsBusy=true;smsLast=Date.now();
+  try{
+    const r=await fetch('/api/sms',{headers:{'x-spendly-key':key},cache:'no-store'});
+    if(r.status===401)throw new Error('Wrong key. Re-enter it.');
+    if(!r.ok)throw new Error('Server said '+r.status);
+    const j=await r.json(), msgs=j.msgs||[];
+    let added=0,dup=0,skip=0;const done=[];
+    for(const m of msgs){
+      done.push(m.id);
+      const p=smsParse(m.t);
+      if(!p||!p.debit){skip++;continue;}
+      if((p.rrn&&data.entries.some(e=>e.rrn===p.rrn))||data.entries.some(e=>e.smsId===m.id)){dup++;continue;}
+      const at=new Date(m.at||Date.now());
+      let ts=at;
+      if(p.y!=null&&p.mo>=0&&p.d){
+        const same=at.getFullYear()===p.y&&at.getMonth()===p.mo&&at.getDate()===p.d;
+        ts=same?at:new Date(p.y,p.mo,p.d,12,0,0);
+      }
+      const g=smsGuess(p.merchant);
+      data.entries.push({id:crypto.randomUUID(),amount:p.amount,category:g.cat,timestamp:ts.toISOString(),note:p.merchant?smsTitle(p.merchant):'Bank SMS',src:'sms',rrn:p.rrn,smsId:m.id,review:!g.sure});
+      added++;
+    }
+    if(added){save();render();}
+    if(done.length){
+      fetch('/api/sms?a=ack',{method:'POST',headers:{'content-type':'application/json','x-spendly-key':key},body:JSON.stringify({ids:done})}).catch(()=>{});
+    }
+    const pend=smsPending().length;
+    smsMsg=added?`${added} new from bank SMS${pend?` · ${pend} need a category`:''}`:(msgs.length?'Nothing new to log':'Up to date');
+    if(added&&typeof showToast==='function')showToast(`🏦 ${added} spend${added>1?'s':''} auto-logged${pend?` · ${pend} need a category`:''}`,'#6ee7b7');
+  }catch(e){smsMsg='Sync failed: '+(e.message||e);}
+  smsBusy=false;
+  smsBadge();
+  if(document.getElementById('view-sms')&&document.getElementById('view-sms').style.display!=='none')renderSms();
+}
+function smsBadge(){
+  const n=smsPending().length,el=document.getElementById('sms-badge');
+  if(el)el.textContent=n?`(${n})`:'';
+}
+function smsSetKey(){
+  const v=(document.getElementById('sms-key-input').value||'').trim();
+  if(!v){showToast('Paste your key first','#f87171');return;}
+  try{localStorage.setItem(SMS_KEY,v);}catch{}
+  smsLast=0;showToast('Saved. Checking for messages…','#6ee7b7');smsSync(false);renderSms();
+}
+function smsSetCat(id,cat){
+  const e=data.entries.find(x=>x.id===id);if(!e)return;
+  e.category=cat;e.review=false;
+  data.smsRules=data.smsRules||{};const k=smsMK(e.note);if(k&&e.note!=='Bank SMS')data.smsRules[k]=cat;
+  data.entries.forEach(x=>{if(x.review&&smsMK(x.note)===k&&k){x.category=cat;x.review=false;}});
+  save();render();smsBadge();renderSms();
+}
+function smsDrop(id){
+  data.entries=data.entries.filter(x=>x.id!==id);save();render();smsBadge();renderSms();showToast('Removed','#a78bfa');
+}
+function renderSms(){
+  const box=document.getElementById('sms-body');if(!box)return;
+  const has=!!smsKey(),pend=smsPending();
+  const dstr=e=>new Date(e.timestamp).toLocaleDateString('en-IN',{day:'numeric',month:'short'});
+  box.innerHTML=
+   (has?`<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap"><button class="btn-primary" style="width:auto;padding:10px 16px" onclick="smsLast=0;smsSync(false)">${smsBusy?'Checking…':'Check now'}</button><span style="font-size:12px;color:var(--muted)">${smsMsg||'Connected'}</span></div>`:'')+
+   (pend.length?`<div style="font-size:13px;font-weight:600;margin:6px 0 8px">Needs a category <span style="color:var(--muted);font-weight:400">· tap one, Spendly remembers the merchant</span></div>`+pend.map(e=>`<div style="border:1.5px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:10px"><div style="display:flex;justify-content:space-between;gap:8px"><div><div style="font-weight:600">${(e.note||'Bank SMS').replace(/</g,'&lt;')}</div><div style="font-size:12px;color:var(--muted)">${dstr(e)}</div></div><div style="font-weight:700">₹${Math.round(e.amount).toLocaleString('en-IN')}</div></div><div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px">${CATS.map(c=>`<button class="chip" onclick="smsSetCat('${e.id}','${c.id}')">${c.icon} ${c.label}</button>`).join('')}<button class="chip" style="opacity:.6" onclick="smsDrop('${e.id}')">Not mine</button></div></div>`).join(''):(has?`<div style="text-align:center;padding:26px 0;color:var(--muted);font-size:13px;border:1.5px dashed var(--border);border-radius:var(--radius);margin-bottom:16px">Everything is categorised.</div>`:''))+
+   `<details ${has?'':'open'} style="margin-top:12px"><summary style="cursor:pointer;font-size:13px;font-weight:600">${has?'Setup and key':'Set up (5 minutes, once)'}</summary>
+    <div style="font-size:13px;line-height:1.7;color:var(--muted);margin-top:10px">
+     <div style="margin-bottom:10px"><input id="sms-key-input" type="password" placeholder="${has?'Key saved. Paste to replace':'Paste your Spendly key'}" style="width:100%;padding:12px;border-radius:10px;border:1.5px solid var(--border);background:transparent;color:inherit"><button class="btn-primary" style="margin-top:8px" onclick="smsSetKey()">Save key</button></div>
+     <b style="color:inherit">On your iPhone (Shortcuts app)</b><br>
+     1. Automation → <b>+</b> → <b>Message</b>.<br>
+     2. <b>Message Contains</b>: <code>debited by</code> (leave Sender empty).<br>
+     3. Choose <b>Run Immediately</b>, then <b>Next</b>.<br>
+     4. Add <b>Get Contents of URL</b>. URL: <code>${location.origin}/api/sms</code><br>
+     5. Show more → Method <b>POST</b> → Request Body <b>JSON</b>. Add a <b>Text</b> field named <code>key</code> with your key, and another <b>Text</b> field named <code>text</code> whose value is the variable <b>Shortcut Input</b>.<br>
+     6. Done. Every IDFC debit now lands here and shows up when you open Spendly.
+    </div></details>`;
+}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)smsSync(true);});
 
 // ── SHARE CARD ────────────────────────────────────────────────────────────────
 function showShareCard(){
