@@ -2324,15 +2324,17 @@ function smsGuess(merchant){
   return {cat:'misc',sure:false};
 }
 function smsPending(){return data&&data.entries?data.entries.filter(e=>e.review):[];}
-let smsBusy=false,smsLast=0,smsMsg='';
+let smsBusy=false,smsLast=0,smsMsg='',smsAuthed=false;
 async function smsSync(silent){
   const key=smsKey();
-  if(!key||!data||isDemoMode||smsBusy)return;
+  if(!data||isDemoMode||smsBusy)return;
   if(silent&&Date.now()-smsLast<60000)return;
   smsBusy=true;smsLast=Date.now();
   try{
-    const r=await fetch('/api/sms',{headers:{'x-spendly-key':key},cache:'no-store'});
-    if(r.status===401)throw new Error('Wrong key. Re-enter it.');
+    const r=await fetch('/api/sms',{headers:key?{'x-spendly-key':key}:{},cache:'no-store',credentials:'same-origin'});
+    if(r.status===401){smsAuthed=false;if(!key){smsMsg='';smsBusy=false;renderSms();return;}throw new Error('Wrong key. Re-enter it.');}
+    if(!smsAuthed&&key)fetch('/api/sms?a=login',{method:'POST',headers:{'x-spendly-key':key},credentials:'same-origin'}).catch(()=>{});
+    smsAuthed=true;
     if(!r.ok)throw new Error('Server said '+r.status);
     const j=await r.json(), msgs=j.msgs||[];
     let added=0,dup=0,skip=0;const done=[];
@@ -2353,7 +2355,7 @@ async function smsSync(silent){
     }
     if(added){save();render();}
     if(done.length){
-      fetch('/api/sms?a=ack',{method:'POST',headers:{'content-type':'application/json','x-spendly-key':key},body:JSON.stringify({ids:done})}).catch(()=>{});
+      fetch('/api/sms?a=ack',{method:'POST',headers:key?{'content-type':'application/json','x-spendly-key':key}:{'content-type':'application/json'},credentials:'same-origin',body:JSON.stringify({ids:done})}).catch(()=>{});
     }
     const pend=smsPending().length;
     smsMsg=added?`${added} new from bank SMS${pend?` · ${pend} need a category`:''}`:(msgs.length?'Nothing new to log':'Up to date');
@@ -2371,7 +2373,8 @@ function smsSetKey(){
   const v=(document.getElementById('sms-key-input').value||'').trim();
   if(!v){showToast('Paste your key first','#f87171');return;}
   try{localStorage.setItem(SMS_KEY,v);}catch{}
-  smsLast=0;showToast('Saved. Checking for messages…','#6ee7b7');smsSync(false);renderSms();
+  smsLast=0;try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist();}catch{}
+  fetch('/api/sms?a=login',{method:'POST',headers:{'x-spendly-key':v},credentials:'same-origin'}).catch(()=>{}).finally(()=>{showToast('Saved. Checking for messages…','#6ee7b7');smsSync(false);renderSms();});
 }
 function smsSetCat(id,cat){
   const e=data.entries.find(x=>x.id===id);if(!e)return;
@@ -2385,7 +2388,7 @@ function smsDrop(id){
 }
 function renderSms(){
   const box=document.getElementById('sms-body');if(!box)return;
-  const has=!!smsKey(),pend=smsPending();
+  const has=!!smsKey()||smsAuthed,pend=smsPending();
   const dstr=e=>new Date(e.timestamp).toLocaleDateString('en-IN',{day:'numeric',month:'short'});
   box.innerHTML=
    (has?`<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap"><button class="btn-primary" style="width:auto;padding:10px 16px" onclick="smsLast=0;smsSync(false)">${smsBusy?'Checking…':'Check now'}</button><span style="font-size:12px;color:var(--muted)">${smsMsg||'Connected'}</span></div>`:'')+

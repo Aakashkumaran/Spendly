@@ -6,6 +6,8 @@ const same = (a, b) => { const x = Buffer.from(String(a || '')), y = Buffer.from
 const ck = () => crypto.createHash('sha256').update('spendly-sms:' + process.env.SPENDLY_KEY).digest();
 const enc = t => { const iv = crypto.randomBytes(12), c = crypto.createCipheriv('aes-256-gcm', ck(), iv), b = Buffer.concat([c.update(t, 'utf8'), c.final()]); return Buffer.concat([iv, c.getAuthTag(), b]).toString('base64'); };
 const dec = s => { const b = Buffer.from(s, 'base64'), d = crypto.createDecipheriv('aes-256-gcm', ck(), b.subarray(0, 12)); d.setAuthTag(b.subarray(12, 28)); return Buffer.concat([d.update(b.subarray(28)), d.final()]).toString('utf8'); };
+const tok = () => crypto.createHmac('sha256', String(process.env.SPENDLY_KEY)).update('spendly-cookie').digest('hex');
+const ck2 = req => { const m = String(req.headers.cookie || '').match(/(?:^|;\s*)spendly_auth=([a-f0-9]+)/); return m ? m[1] : ''; };
 const MONEY = /(?:rs\.?|inr|₹)\s*[\d]/i, TXN = /\b(debited|credited|spent|withdrawn|purchase)\b/i;
 const body = req => { let b = req.body; if (typeof b === 'string') { try { b = JSON.parse(b); } catch (e) { b = Object.fromEntries(new URLSearchParams(b)); } } return b || {}; };
 module.exports = async (req, res) => {
@@ -16,7 +18,13 @@ module.exports = async (req, res) => {
   if (!process.env.SPENDLY_KEY || !process.env.BLOB_READ_WRITE_TOKEN) return res.status(500).json({ error: 'Server is not configured.' });
   try {
     const b = body(req), key = req.headers['x-spendly-key'] || b.key || b.k;
-    if (!same(key, process.env.SPENDLY_KEY)) return res.status(401).json({ error: 'Wrong or missing key.' });
+    const okKey = same(key, process.env.SPENDLY_KEY), okCookie = same(ck2(req), tok());
+    if (!okKey && !okCookie) return res.status(401).json({ error: 'Wrong or missing key.' });
+    if (req.method === 'POST' && q.a === 'login') {
+      if (!okKey) return res.status(401).json({ error: 'Wrong or missing key.' });
+      res.setHeader('Set-Cookie', 'spendly_auth=' + tok() + '; Max-Age=31536000; Path=/; HttpOnly; Secure; SameSite=Strict');
+      return res.status(200).json({ ok: true });
+    }
     if (req.method === 'GET') {
       const { blobs } = await list({ prefix: 'sms/', limit: 200 });
       const msgs = (await Promise.all(blobs.map(async x => { try { const j = await (await fetch(x.url + '?t=' + Date.now())).json(); return { id: x.pathname, at: j.at, t: dec(j.c) }; } catch (e) { return null; } }))).filter(Boolean).sort((p, q) => p.at - q.at);
