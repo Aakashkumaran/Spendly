@@ -225,6 +225,49 @@ button{cursor:pointer;border:none;transition:all .15s;-webkit-appearance:none}
 .mono{font-family:'DM Mono',monospace}
 .forecast-line{text-align:center;font-size:12px;color:var(--muted);font-style:italic;padding:0 16px;margin-bottom:20px}
 
+.cmp-wrap{padding:0 16px 40px}
+.cmp-presets{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+.cmp-chip{padding:7px 12px;border-radius:100px;font-size:12px;font-weight:500;cursor:pointer;border:1.5px solid var(--border);background:transparent;color:var(--muted)}
+.cmp-chip.active{background:var(--purple-dim);color:var(--purple);border-color:rgba(167,139,250,.3)}
+.cmp-pick{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.cmp-pick select{flex:1;min-width:0;background:var(--surface);color:var(--text);border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;font-size:14px}
+.cmp-pick select option{background:#14141f;color:var(--text)}
+.cmp-pick span{color:var(--muted);font-size:12px}
+.cmp-toggle{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);margin-bottom:14px;cursor:pointer;user-select:none}
+.cmp-toggle i{width:30px;height:18px;border-radius:100px;background:var(--faint);position:relative;transition:background .2s;flex-shrink:0}
+.cmp-toggle i::after{content:'';position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;transition:transform .2s}
+.cmp-toggle.on i{background:var(--purple-dark)}
+.cmp-toggle.on i::after{transform:translateX(12px)}
+.cmp-sum{padding:16px;margin-bottom:12px}
+.cmp-sum-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+.cmp-lbl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+.cmp-big{font-family:'Syne',sans-serif;font-size:22px;font-weight:800}
+.cmp-sum-delta{font-family:'Syne',sans-serif;font-size:17px;font-weight:800;text-align:center;padding-top:12px;border-top:1px solid var(--border)}
+.cmp-good{color:var(--green)}.cmp-bad{color:var(--red)}.cmp-flat{color:var(--muted)}
+.cmp-callouts{display:flex;flex-direction:column;gap:6px;margin-bottom:14px;font-size:13px}
+.cmp-callouts div{padding:10px 12px;border-radius:var(--radius-sm);background:var(--surface);border:1px solid var(--border)}
+.cmp-legend{display:flex;gap:14px;font-size:11px;color:var(--muted);margin:0 2px 8px}
+.cmp-legend b{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.cmp-row{padding:12px 14px;margin-bottom:8px;cursor:pointer}
+.cmp-row-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px}
+.cmp-name{font-size:14px;font-weight:600}
+.cmp-delta{font-size:12.5px;font-weight:600;text-align:right;white-space:nowrap}
+.cmp-bl{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.cmp-bar{height:8px;border-radius:100px;min-width:2px;transition:width .3s}
+.cmp-bar.a{background:var(--purple)}.cmp-bar.b{background:rgba(255,255,255,.25)}
+.cmp-val{font-size:11.5px;color:var(--muted);white-space:nowrap}
+.cmp-tx{margin-top:10px;padding-top:10px;border-top:1px solid var(--border);font-size:12px}
+.cmp-tx-h{color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-size:10.5px;margin:8px 0 4px}
+.cmp-tx-i{display:flex;justify-content:space-between;gap:8px;padding:3px 0}
+.cmp-tx-i span:first-child{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cmp-sec{font-family:'Syne',sans-serif;font-size:15px;font-weight:700;margin:22px 0 4px}
+.cmp-trend-wrap{overflow-x:auto;margin:0 -16px;padding:0 16px;scrollbar-width:none}
+.cmp-trend-wrap::-webkit-scrollbar{display:none}
+.cmp-trend{border-collapse:separate;border-spacing:3px;font-size:11.5px;width:100%;min-width:420px}
+.cmp-trend th{font-weight:500;color:var(--muted);padding:4px 2px;text-align:center}
+.cmp-trend th:first-child,.cmp-trend td:first-child{text-align:left;white-space:nowrap;padding-right:8px}
+.cmp-trend td{text-align:center;padding:7px 2px;border-radius:6px}
+.cmp-trend tr.tot td{font-weight:700}
 .view-hidden{display:none !important}
 
 /* ── DEMO BANNER ── */
@@ -676,6 +719,7 @@ button:hover,
     <button class="nav-tab" onclick="showView('history')" id="tab-history">History <span id="history-badge" style="font-size:10px;opacity:.5"></span></button>
     <button class="nav-tab" onclick="showWeeklyReport()" id="tab-weekly">Weekly</button>
     <button class="nav-tab" onclick="showMonthlyReport()" id="tab-monthly">Monthly</button>
+    <button class="nav-tab" onclick="showView('compare')" id="tab-compare">Compare</button>
     <button class="nav-tab" onclick="showView('guide')" id="tab-guide">Guide</button>
     <button class="nav-tab" onclick="showView('recurring')" id="tab-recurring">Recurring <span id="recurring-badge" style="font-size:10px;opacity:.5"></span></button>
     <button class="nav-tab" onclick="showView('sms')" id="tab-sms">Auto-log <span id="sms-badge" style="font-size:10px;opacity:.7"></span></button>
@@ -897,6 +941,16 @@ button:hover,
       <div id="history-empty" style="display:none;text-align:center;padding:40px 0;color:var(--muted);font-size:14px">No entries yet</div>
     </div>
   </div><!-- /view-history -->
+
+  <!-- COMPARE VIEW -->
+  <div id="view-compare" style="display:none">
+    <div class="cmp-wrap">
+      <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:700">Compare</div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:14px">Category-wise, month against month</div>
+      <div id="cmp-controls"></div>
+      <div id="cmp-body"></div>
+    </div>
+  </div><!-- /view-compare -->
 
   <!-- GUIDE VIEW -->
   <div id="view-guide" style="display:none;padding:0 20px">
@@ -1885,15 +1939,139 @@ function renderHistory(){
   });
 }
 
+// ── COMPARE ───────────────────────────────────────────────────────────────────
+let cmpA=null,cmpB=null,cmpToDate=true,cmpOpen={};
+const cmpFmt=n=>'₹'+Math.round(Math.abs(n)).toLocaleString('en-IN');
+const cmpEsc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function cmpKey(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;}
+function cmpShift(back){const n=new Date();return cmpKey(new Date(n.getFullYear(),n.getMonth()-back,1));}
+function cmpLabel(k){const [y,m]=k.split('-').map(Number);return new Date(y,m-1,1).toLocaleDateString('en-IN',{month:'short',year:'numeric'});}
+function cmpMonthList(){
+  const s=new Set([cmpShift(0),cmpShift(1),cmpShift(2)]);
+  data.entries.forEach(e=>s.add(cmpKey(new Date(e.timestamp))));
+  return [...s].sort().reverse();
+}
+function cmpAgg(key,maxDay){
+  const by={},items={};let total=0;
+  data.entries.forEach(e=>{
+    const d=new Date(e.timestamp);
+    if(cmpKey(d)!==key)return;
+    if(maxDay&&d.getDate()>maxDay)return;
+    by[e.category]=(by[e.category]||0)+e.amount;
+    (items[e.category]=items[e.category]||[]).push(e);
+    const cc=CATS.find(x=>x.id===e.category);
+    if(!cc||cc.weight>=0)total+=e.amount;
+  });
+  return {by,items,total};
+}
+function cmpSet(which,val){if(which==='A')cmpA=val;else cmpB=val;cmpOpen={};renderCompare();}
+function cmpPreset(a,b){cmpA=cmpShift(a);cmpB=cmpShift(b);cmpOpen={};renderCompare();}
+function cmpToggleDate(){cmpToDate=!cmpToDate;renderCompare();}
+function cmpToggleRow(id){cmpOpen[id]=!cmpOpen[id];renderCompare();}
+function cmpTone(d,good){if(d===0)return 'cmp-flat';const up=d>0;return (good?!up:up)?'cmp-bad':'cmp-good';}
+function cmpDeltaTxt(a,b){
+  const d=a-b;
+  if(a===0&&b===0)return '—';
+  if(d===0)return '± ₹0';
+  const sign=d>0?'+':'−';
+  let p;
+  if(b===0)p='new';
+  else if(a===0)p='gone';
+  else{const v=Math.abs(d/b*100);p=sign+(v<10?v.toFixed(1):Math.round(v))+'%';}
+  return `${sign}${cmpFmt(d)} · ${p}`;
+}
+function cmpCompact(n){if(!n)return '·';if(n>=10000)return Math.round(n/1000)+'k';if(n>=1000)return (n/1000).toFixed(1)+'k';return String(Math.round(n));}
+function cmpTxList(items,label){
+  if(!items||!items.length)return `<div class="cmp-tx-h">${label}</div><div class="cmp-tx-i"><span>Nothing</span></div>`;
+  const sorted=[...items].sort((x,y)=>y.amount-x.amount);
+  const shown=sorted.slice(0,40).map(e=>{
+    const dt=new Date(e.timestamp).toLocaleDateString('en-IN',{day:'numeric',month:'short'});
+    return `<div class="cmp-tx-i"><span>${dt}${e.note?' · '+cmpEsc(e.note):''}</span><span>${cmpFmt(e.amount)}</span></div>`;
+  }).join('');
+  const more=sorted.length>40?`<div class="cmp-tx-i"><span>+${sorted.length-40} more</span></div>`:'';
+  return `<div class="cmp-tx-h">${label}</div>${shown}${more}`;
+}
+function renderCompare(){
+  const ctl=document.getElementById('cmp-controls'),body=document.getElementById('cmp-body');
+  if(!ctl||!body||!data)return;
+  const months=cmpMonthList();
+  if(!cmpA||!months.includes(cmpA))cmpA=cmpShift(0);
+  if(!cmpB||!months.includes(cmpB))cmpB=cmpShift(1);
+  const curKey=cmpShift(0),today=new Date().getDate();
+  const hasCur=cmpA===curKey||cmpB===curKey;
+  const maxDay=(hasCur&&cmpToDate)?today:0;
+  const opts=sel=>months.map(k=>`<option value="${k}"${k===sel?' selected':''}>${cmpLabel(k)}</option>`).join('');
+  const pre=(a,b,t)=>`<button class="cmp-chip${cmpA===cmpShift(a)&&cmpB===cmpShift(b)?' active':''}" onclick="cmpPreset(${a},${b})">${t}</button>`;
+  ctl.innerHTML=`<div class="cmp-presets">${pre(0,1,'This vs last')}${pre(1,2,'Last vs previous')}${pre(0,2,'This vs 2 months ago')}</div>
+    <div class="cmp-pick"><select onchange="cmpSet('A',this.value)">${opts(cmpA)}</select><span>vs</span><select onchange="cmpSet('B',this.value)">${opts(cmpB)}</select></div>
+    ${hasCur?`<div class="cmp-toggle${cmpToDate?' on':''}" onclick="cmpToggleDate()"><i></i>Same-day cutoff · compare up to day ${today} in both months</div>`:''}`;
+
+  const A=cmpAgg(cmpA,maxDay),B=cmpAgg(cmpB,maxDay);
+  const ids=[...new Set([...Object.keys(A.by),...Object.keys(B.by)])];
+  const rows=ids.map(id=>{
+    const c=CATS.find(x=>x.id===id)||{id,label:id,icon:'📦',weight:1};
+    const a=A.by[id]||0,b=B.by[id]||0;
+    return {c,a,b,d:a-b,good:c.weight<0};
+  }).sort((x,y)=>Math.abs(y.d)-Math.abs(x.d));
+  const cut=maxDay?` (to day ${maxDay})`:'';
+  let html='';
+  if(!rows.length){
+    body.innerHTML=`<div style="text-align:center;padding:40px 0;color:var(--muted);font-size:14px">No entries in either month</div>`;
+    return;
+  }
+  const td=A.total-B.total;
+  html+=`<div class="card cmp-sum"><div class="cmp-sum-grid">
+    <div><div class="cmp-lbl">${cmpLabel(cmpA)}${cut}</div><div class="cmp-big">${cmpFmt(A.total)}</div></div>
+    <div><div class="cmp-lbl">${cmpLabel(cmpB)}${cut}</div><div class="cmp-big" style="color:rgba(255,255,255,.6)">${cmpFmt(B.total)}</div></div>
+  </div><div class="cmp-sum-delta ${cmpTone(td,false)}">${cmpDeltaTxt(A.total,B.total)}</div><div style="text-align:center;font-size:11px;color:var(--muted);margin-top:6px">Spend only · investments &amp; debt shown per category below</div></div>`;
+
+  const spendRows=rows.filter(r=>!r.good);
+  const up=spendRows.filter(r=>r.d>0)[0],down=[...spendRows].filter(r=>r.d<0).sort((x,y)=>x.d-y.d)[0];
+  if(up||down){
+    html+=`<div class="cmp-callouts">`;
+    if(up)html+=`<div>📈 <b>${up.c.icon} ${up.c.label}</b> jumped <span class="cmp-bad">${cmpFmt(up.d)}</span> — biggest increase</div>`;
+    if(down)html+=`<div>📉 <b>${down.c.icon} ${down.c.label}</b> dropped <span class="cmp-good">${cmpFmt(down.d)}</span> — biggest saving</div>`;
+    html+=`</div>`;
+  }
+
+  const maxV=Math.max(1,...rows.map(r=>Math.max(r.a,r.b)));
+  html+=`<div class="cmp-legend"><span><b style="background:var(--purple)"></b>${cmpLabel(cmpA)}</span><span><b style="background:rgba(255,255,255,.25)"></b>${cmpLabel(cmpB)}</span></div>`;
+  rows.forEach(r=>{
+    const open=!!cmpOpen[r.c.id];
+    html+=`<div class="card cmp-row" onclick="cmpToggleRow('${r.c.id}')">
+      <div class="cmp-row-top"><div class="cmp-name">${r.c.icon} ${r.c.label}</div><div class="cmp-delta ${cmpTone(r.d,r.good)}">${cmpDeltaTxt(r.a,r.b)}</div></div>
+      <div class="cmp-bl"><div class="cmp-bar a" style="width:${(r.a/maxV*70).toFixed(1)}%"></div><span class="cmp-val">${cmpFmt(r.a)}</span></div>
+      <div class="cmp-bl"><div class="cmp-bar b" style="width:${(r.b/maxV*70).toFixed(1)}%"></div><span class="cmp-val">${cmpFmt(r.b)}</span></div>
+      ${open?`<div class="cmp-tx">${cmpTxList(A.items[r.c.id],cmpLabel(cmpA))}${cmpTxList(B.items[r.c.id],cmpLabel(cmpB))}</div>`:''}
+    </div>`;
+  });
+
+  // 6-month pattern
+  const keys=[5,4,3,2,1,0].map(cmpShift);
+  const aggs=keys.map(k=>cmpAgg(k,0));
+  const catIds=CATS.map(c=>c.id).filter(id=>aggs.some(g=>g.by[id]));
+  if(catIds.length){
+    html+=`<div class="cmp-sec">Pattern · last 6 months</div><div style="font-size:12px;color:var(--muted);margin-bottom:10px">Darker = more spent in that category. ${cmpLabel(curKey)} is month-to-date.</div>
+    <div class="cmp-trend-wrap"><table class="cmp-trend"><thead><tr><th></th>${keys.map(k=>`<th>${new Date(+k.slice(0,4),+k.slice(5)-1,1).toLocaleDateString('en-IN',{month:'short'})}${k===curKey?'*':''}</th>`).join('')}</tr></thead><tbody>`;
+    catIds.forEach(id=>{
+      const c=CATS.find(x=>x.id===id);
+      const vals=aggs.map(g=>g.by[id]||0),mx=Math.max(...vals,1);
+      html+=`<tr><td>${c.icon} ${c.label}</td>${vals.map(v=>`<td style="background:rgba(167,139,250,${v?(0.1+0.5*v/mx).toFixed(2):0})">${cmpCompact(v)}</td>`).join('')}</tr>`;
+    });
+    html+=`<tr class="tot"><td>Total</td>${aggs.map(g=>`<td>${cmpCompact(g.total)}</td>`).join('')}</tr></tbody></table></div>`;
+  }
+  body.innerHTML=html;
+}
+
 // ── VIEWS ─────────────────────────────────────────────────────────────────────
 function showView(v){
-  ['home','history','guide','recurring','sms'].forEach(id=>{
+  ['home','history','compare','guide','recurring','sms'].forEach(id=>{
     const el=document.getElementById(`view-${id}`);
     if(!el)return;
     if(id===v){el.classList.remove('view-hidden');el.style.display='block';}
     else{el.classList.add('view-hidden');el.style.display='none';}
   });
-  ['home','history','guide','recurring','sms'].forEach(id=>{
+  ['home','history','compare','guide','recurring','sms'].forEach(id=>{
     const tab=document.getElementById(`tab-${id}`);
     if(tab) tab.classList.toggle('active',id===v);
   });
@@ -1905,6 +2083,7 @@ function showView(v){
   window.scrollTo({top:0,behavior:'instant'});
   document.getElementById('app').scrollTop=0;
   if(v==='history') renderHistory();
+  if(v==='compare') renderCompare();
   if(v==='recurring') renderRecurring();
   if(v==='sms'){renderSms();smsSync(true);}
 }
